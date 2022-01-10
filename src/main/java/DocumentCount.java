@@ -10,9 +10,11 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.log4j.BasicConfigurator;
 
 public class DocumentCount {
 
+    // 输入<className,{1,1,...}>，输出<className, docNumber>
     public static class IntSumReducer
             extends Reducer<Text,IntWritable,Text,IntWritable> {
         private IntWritable result = new IntWritable();
@@ -26,18 +28,23 @@ public class DocumentCount {
             }
             result.set(sum);
             context.write(key, result);
-            System.out.println("reduce:" + key + ',' + result);
+//            System.out.println("reduce:" + key + ',' + result);
         }
     }
 
+    /*
+    args[0]:训练集目录路径
+    args[1]:结果存放路径
+    * */
     public static void main(String[] args) throws Exception {
+        BasicConfigurator.configure();
+
         Configuration conf = new Configuration();
         Job job = Job.getInstance(conf, "document count");
         job.setJarByClass(DocumentCount.class);
 //        job.setInputFormatClass(FileNameInputFormat.class);
-        job.setInputFormatClass(FileNameCombineInputFormat.class);
-//        job.setMapperClass(DocumentCount.TokenizerMapper.class);
-//        job.setCombinerClass(DocumentCount.IntSumReducer.class);
+        job.setInputFormatClass(FileNameCombineInputFormat.class);  // 使用CombineInputFormat处理大量小文件
+        // mapper对输入不做处理直接输出
         job.setReducerClass(DocumentCount.IntSumReducer.class);
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(IntWritable.class);
@@ -53,7 +60,7 @@ public class DocumentCount {
 
 //        FileInputFormat.addInputPath(job, new Path(args[0]));
 //        FileInputFormat.addInputPaths(job, paths.toString().substring(1));
-        FileInputFormat.setMaxInputSplitSize(job, 3145728);
+        FileInputFormat.setMaxInputSplitSize(job, 262144);  // 小文件合并成大小最大为256KB的InputSplit
         FileInputFormat.addInputPaths(job, paths.toString().substring(1));
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
 

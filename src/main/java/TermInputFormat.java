@@ -81,6 +81,7 @@ public class TermInputFormat extends FileInputFormat<ClassTermPair, IntWritable>
         @Override
         public boolean nextKeyValue() throws IOException, InterruptedException {
             String term;
+            // 逐行读单词
             if ((term = this.br.readLine()) != null) {
                 this.key.setTerm(term);
                 return true;

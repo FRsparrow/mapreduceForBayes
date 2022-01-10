@@ -11,9 +11,11 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.log4j.BasicConfigurator;
 
 public class TermCount {
 
+    // 输入<<className,term>,1>，输出<<className,term>,1>
     public static class TermMapper
             extends Mapper<ClassTermPair, IntWritable, ClassTermPair, IntWritable> {
 
@@ -28,6 +30,7 @@ public class TermCount {
         }
     }
 
+    // 输入<<className,term>,{1,1,...}>，输出<<className,term>,term在class中的出现次数>
     public static class IntSumReducer
             extends Reducer<ClassTermPair,IntWritable,Text,IntWritable> {
         private IntWritable result = new IntWritable();
@@ -46,7 +49,13 @@ public class TermCount {
         }
     }
 
+    /*
+    args[0]:训练集目录路径
+    args[1]:结果存放路径
+    * */
     public static void main(String[] args) throws Exception {
+        BasicConfigurator.configure();
+
         Configuration conf = new Configuration();
         Job job = Job.getInstance(conf, "term count");
         job.setJarByClass(TermCount.class);
@@ -69,7 +78,7 @@ public class TermCount {
 
 //        FileInputFormat.addInputPath(job, new Path(args[0]));
 //        FileInputFormat.addInputPaths(job, paths.toString().substring(1));
-        FileInputFormat.setMaxInputSplitSize(job, 3145728); // 3MB
+        FileInputFormat.setMaxInputSplitSize(job, 262144); // 256KB
         FileInputFormat.addInputPaths(job, paths.toString().substring(1));
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
 

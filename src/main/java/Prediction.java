@@ -3,6 +3,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -14,6 +15,7 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.log4j.BasicConfigurator;
 
 public class Prediction {
     private static HashMap<String, Double> classProbsLog;   // 先验概率取对数
@@ -59,6 +61,7 @@ public class Prediction {
 
     // 从文件读取各类中各单词数量及单词总数
     public static void readTermProbs(FileSystem fs, Path path) throws IOException {
+        HashSet<String> termSet = new HashSet<>();
         termNumbers = new HashMap<>();
         classTermCounts = new HashMap<>();
         BufferedReader br = new BufferedReader(new InputStreamReader(fs.open(path)));
@@ -68,15 +71,19 @@ public class Prediction {
 
         while ((line = br.readLine()) != null) {
             cn = line.split("\\s+");
-            classTermNumber = Integer.parseInt(cn[2]) + 1;  // 防止不存在的term使条件概率为0
+            classTermNumber = Integer.parseInt(cn[2]);
+            termSet.add(cn[1]);
             add(classTermCounts, cn[0], classTermNumber);
 
             termNumbers.put(
                     new ClassTermPair(cn[0], cn[1]),
-                    classTermNumber)
-            ;
+                    classTermNumber + 1);  // 防止不存在的term使条件概率为0
         }
 
+        int termCount = termSet.size();
+        for (String c: classProbsLog.keySet()) {
+            add(classTermCounts, c, termCount);
+        }
         br.close();
     }
 
@@ -106,11 +113,23 @@ public class Prediction {
         return classProbLog + conditionProbLog;
     }
 
+    // 输入<文件名,文件内容>，输出<文件名，<className,属于该class概率>>
     public static class DocMapper
             extends Mapper<Text, Text, Text, ClassProbPair> {
 
         private Text key = new Text();
         private ClassProbPair value = new ClassProbPair();
+
+        @Override
+        protected void setup(Context context) throws IOException, InterruptedException {
+            Configuration conf  = context.getConfiguration();
+            String classCountFilePath = conf.get("classCountFilePath");
+            String termCountFilePath = conf.get("termCountFilePath");
+            FileSystem fs = FileSystem.get(conf);
+            readClassProbs(fs, new Path(classCountFilePath));
+            readTermProbs(fs, new Path(termCountFilePath));
+            System.out.println("<==================setup finished==================>");
+        }
 
         public void map(Text docId, Text content, Context context
         ) throws IOException, InterruptedException {
@@ -128,6 +147,7 @@ public class Prediction {
         }
     }
 
+    // 输入<文件名，{<className,属于该class概率>}>，输出<文件名,预测类>
     public static class ProbMaxReducer
             extends Reducer<Text, ClassProbPair, Text, Text> {
 
@@ -151,8 +171,19 @@ public class Prediction {
         }
     }
 
+    /*
+    args[0]:测试集目录路径
+    args[1]:结果存放路径
+    args[2]:DocumentCount结果文件路径
+    args[3]:TermCount结果文件路径
+    * */
     public static void main(String[] args) throws Exception {
+        BasicConfigurator.configure();
+
         Configuration conf = new Configuration();
+        conf.set("classCountFilePath", args[2]);
+        conf.set("termCountFilePath", args[3]);
+
         Job job = Job.getInstance(conf, "class prediction");
         job.setJarByClass(Prediction.class);
 //        job.setInputFormatClass(DocInputFormat.class);
@@ -171,13 +202,14 @@ public class Prediction {
             paths.append(',').append(stat.getPath());
         }
 
+//        FileInputFormat.setMaxInputSplitSize(job, 262144); // 256KB
         FileInputFormat.setMaxInputSplitSize(job, 3145728); // 3MB
         FileInputFormat.addInputPaths(job, paths.toString().substring(1));
         FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
 
-        readClassProbs(hdfs, new Path(args[2]));
-        readTermProbs(hdfs, new Path(args[3]));
+//        readClassProbs(hdfs, new Path(args[2]));
+//        readTermProbs(hdfs, new Path(args[3]));
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }

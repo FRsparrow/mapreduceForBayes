@@ -6,7 +6,7 @@ import org.apache.hadoop.io.WritableComparable;
 
 public class ClassProbPair implements WritableComparable<ClassProbPair>{
     private String className;
-    private double probLog;
+    private double probLog; // 属于该类的概率的对数
 
     public ClassProbPair() {
         // TODO Auto-generated constructor stub

@@ -82,8 +82,8 @@ public class FileNameInputFormat extends FileInputFormat<Text, IntWritable> {
 
                 // set the key to the fully qualified path
                 String fileName = fs.makeQualified(fSplit.getPath()).getName();
-                String className = fileName.substring(0, fileName.indexOf('_'));
-                key.set(className);
+                String className = fileName.substring(0, fileName.indexOf('_'));    // 获取类名
+                key.set(className); // 类名作为key
 
                 read = true;
                 return true;
